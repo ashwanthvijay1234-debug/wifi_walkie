@@ -37,31 +37,6 @@ This magical one-liner will:
 
 > 🔍 **Security Note**: This short URL redirects to our official [GitHub Gist installer script](https://gist.github.com/ashwanthvijay1234-debug/b3fb8fb03575d0fe6dd0f6ab9f8fc3d2). You can inspect the code there before running!
 
-### Option 2: Local Install Scripts
-
-**For Windows CMD:**
-```cmd
-install.bat
-```
-
-**For Windows PowerShell:**
-```powershell
-.\install.ps1
-```
-
-### Option 3: Manual Installation
-
-```bash
-# Clone or download the project
-cd wifi-walkie-talkie
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Or install directly
-pip install cryptography
-```
-
 ## 🚀 Quick Start
 
 ### Step 1: Run the App

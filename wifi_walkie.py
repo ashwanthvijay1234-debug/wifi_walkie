@@ -3,7 +3,6 @@ import threading
 import time
 import os
 import sys
-import random
 import json
 from datetime import datetime
 
@@ -22,7 +21,7 @@ except ImportError:
 UDP_PORT = 50050
 BROADCAST_IP = "255.255.255.255"
 BUFFER_SIZE = 2048
-PEER_TIMEOUT = 15  # Seconds before a peer is considered offline
+PEER_TIMEOUT = 15 
 
 # --- Colors & Styles (ANSI) ---
 class Colors:
@@ -31,32 +30,32 @@ class Colors:
     DIM = "\033[2m"
     
     # Backgrounds
-    BG_HEADER = "\033[44m"       # Blue
-    BG_CHAT = "\033[48;5;234m"   # Very Dark Gray (Almost Black)
-    BG_INPUT = "\033[48;5;236m"  # Dark Gray
-    BG_MY_MSG = "\033[48;5;22m"  # Dark Green
-    BG_OTHER_MSG = "\033[48;5;24m" # Dark Blue
+    BG_HEADER = "\033[44m"       
+    BG_CHAT = "\033[48;5;234m"   
+    BG_INPUT = "\033[48;5;236m"  
+    BG_MY_MSG = "\033[48;5;22m"  
+    BG_OTHER_MSG = "\033[48;5;24m" 
     
     # Text
-    TEXT_HEADER = "\033[97m"     # Bright White
-    TEXT_MY_NAME = "\033[92m"    # Green
-    TEXT_OTHER_NAME = "\033[96m" # Cyan
-    TEXT_ERROR = "\033[91m"      # Red
-    TEXT_SYSTEM = "\033[93m"     # Yellow
-    TEXT_TIME = "\033[90m"       # Gray
+    TEXT_HEADER = "\033[97m"     
+    TEXT_MY_NAME = "\033[92m"    
+    TEXT_OTHER_NAME = "\033[96m" 
+    TEXT_CYAN = "\033[96m"       # <--- FIXED: Added missing attribute
+    TEXT_ERROR = "\033[91m"      
+    TEXT_SYSTEM = "\033[93m"     
+    TEXT_TIME = "\033[90m"       
+    TEXT_GREEN = "\033[92m"      # <--- Added for the success message
 
-    # Cursor
     HIDE_CURSOR = "\033[?25l"
     SHOW_CURSOR = "\033[?25h"
 
-# --- ASCII Art Logo (Wider & Cleaner) ---
 LOGO = """
   __      __  ________  _______  __    __  _______ 
- |  \    /  ||        ||       ||  |  |  ||       |
- |   \  /   |   _____| |   _   ||   | |  ||    ___|
+ |  \    /  ||        ||        ||  |  |  ||       |
+ |   \  /   |  _____| |   _   ||   | |  ||    ___|
  |        \  |  |_____  |  | |  ||    |_|  ||   |___ 
- |   |\   | |   _____| |  |_|  ||       __||    ___|
- |   | \  | |  |_____| |       ||   __|   ||   |___ 
+ |   |\   | |   _____| |  |_|  ||        __||    ___|
+ |   | \  | |  |_____| |       ||    __|   ||   |___ 
  |___|  \__||________| |_______||__|  |__||_______|
                                                    
       📻 The Friendly Local Network Messenger
@@ -65,32 +64,42 @@ LOGO = """
 class WiFIMessenger:
     def __init__(self):
         self.username = ""
-        self.mode = "public"  # 'public' or 'secret'
+        self.mode = "public"
         self.secret_key = None
         self.socket = None
-        self.peers = {}  # {ip: last_seen_time}
-        self.messages = [] # List of formatted message strings
+        self.peers = {}
+        self.messages = []
         self.running = True
-        self.width = 80 # Default, updated on draw
+        self.width = 80
         
-        # Setup Input Handling based on OS
-        if os.name == 'nt': # Windows
+        if os.name == 'nt':
             import msvcrt
-            self.get_key = lambda: msvcrt.getch().decode('utf-8', errors='ignore')
-        else: # Linux/Mac
+            # Improved Windows key handling to prevent decoding crashes
+            def get_key_win():
+                char = msvcrt.getch()
+                try:
+                    return char.decode('utf-8')
+                except:
+                    return ""
+            self.get_key = get_key_win
+        else:
             import tty, termios
             self.fd = sys.stdin.fileno()
-            self.old_settings = termios.tcgetattr(self.fd)
+            self.get_key = self.get_key_unix
+
+    def get_key_unix(self):
+        import tty, termios
+        old_settings = termios.tcgetattr(self.fd)
+        try:
             tty.setraw(self.fd)
-            self.get_key = lambda: sys.stdin.read(1)
+            return sys.stdin.read(1)
+        finally:
+            termios.tcsetattr(self.fd, termios.TCSADRAIN, old_settings)
 
     def setup_crypto(self, password):
         if not CRYPTO_AVAILABLE:
-            print(f"{Colors.TEXT_ERROR}Error: 'cryptography' library not installed.{Colors.RESET}")
-            print(f"Run: pip install cryptography")
             return False
-        
-        salt = b'WiF-Walkie-Salt!' # Static salt for simplicity in this demo
+        salt = b'WiF-Walkie-Salt!'
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,
@@ -112,96 +121,71 @@ class WiFIMessenger:
             return text
         try:
             return self.secret_key.decrypt(text.encode()).decode()
-        except Exception:
-            return "<Encrypted Message - Wrong Password?>"
+        except:
+            return None
 
     def init_socket(self):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        self.socket.settimeout(1.0) # Non-blocking receive
-        
-        # Bind to all interfaces
+        self.socket.settimeout(0.5)
         try:
             self.socket.bind(("0.0.0.0", UDP_PORT))
-        except OSError as e:
-            print(f"{Colors.TEXT_ERROR}Failed to bind port {UDP_PORT}. Is another instance running?{Colors.RESET}")
+        except OSError:
             self.running = False
 
     def send_message(self, msg_type, content):
         if not self.socket: return
-        
         data = {
-            "type": msg_type, # 'msg', 'join', 'leave', 'ping'
+            "type": msg_type,
             "user": self.username,
             "content": content,
             "time": datetime.now().strftime("%H:%M")
         }
-        
-        packet = json.dumps(data).encode('utf-8')
-        
-        if msg_type == 'msg':
-            packet_str = self.encrypt_msg(json.dumps(data))
-            # Send encrypted string if in secret mode, else normal json
-            if self.mode == 'secret':
-                final_packet = packet_str.encode('utf-8')
-            else:
-                final_packet = packet
+        raw_json = json.dumps(data)
+        if self.mode == 'secret':
+            payload = self.encrypt_msg(raw_json).encode('utf-8')
         else:
-            final_packet = packet
-            
+            payload = raw_json.encode('utf-8')
         try:
-            self.socket.sendto(final_packet, (BROADCAST_IP, UDP_PORT))
-        except Exception as e:
-            pass # Ignore network glitches
+            self.socket.sendto(payload, (BROADCAST_IP, UDP_PORT))
+        except:
+            pass
 
     def receive_loop(self):
+        local_ip = self.get_local_ip()
         while self.running:
             try:
                 data, addr = self.socket.recvfrom(BUFFER_SIZE)
                 ip = addr[0]
+                if ip == local_ip: continue
                 
-                # Update peer presence
                 self.peers[ip] = time.time()
+                decoded = data.decode('utf-8')
                 
-                # Decode
-                try:
-                    decoded = data.decode('utf-8')
-                    if self.mode == 'secret':
-                        # In secret mode, we expect an encrypted string directly if it's a msg
-                        # But join/leave might still be plain? For simplicity, let's assume all are encrypted in secret mode
-                        # Actually, to keep it simple: if secret mode, we try to decrypt. If fails, ignore.
-                        try:
-                            decrypted_json = self.decrypt_msg(decoded)
-                            payload = json.loads(decrypted_json)
-                        except:
-                            continue # Skip undecryptable packets
+                if self.mode == 'secret':
+                    decrypted = self.decrypt_msg(decoded)
+                    if decrypted:
+                        payload = json.loads(decrypted)
                     else:
-                        payload = json.loads(decoded)
-                    
-                    msg_type = payload.get("type")
-                    user = payload.get("user", "Unknown")
-                    content = payload.get("content", "")
-                    timestamp = payload.get("time", "")
+                        continue
+                else:
+                    payload = json.loads(decoded)
+                
+                msg_type = payload.get("type")
+                user = payload.get("user", "Unknown")
+                content = payload.get("content", "")
+                timestamp = payload.get("time", "")
 
-                    if msg_type == 'msg':
-                        self.add_message(user, content, timestamp, is_me=(ip == self.get_local_ip()))
-                    elif msg_type == 'join':
-                        if user != self.username:
-                            self.add_system(f"👋 {user} joined the walkie-talkie!")
-                    elif msg_type == 'leave':
-                        if user != self.username:
-                            self.add_system(f"👋 {user} left the walkie-talkie.")
-                            
-                except json.JSONDecodeError:
-                    continue # Ignore garbage packets
-                    
-            except socket.timeout:
+                if msg_type == 'msg':
+                    self.add_message(user, content, timestamp, is_me=False)
+                elif msg_type == 'join':
+                    self.add_system(f"👋 {user} joined!")
+                elif msg_type == 'leave':
+                    self.add_system(f"👋 {user} left.")
+            except:
                 continue
-            except Exception as e:
-                time.sleep(1)
 
     def get_local_ip(self):
-        # Helper to get current IP for comparison
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
             s.connect(('8.8.8.8', 80))
@@ -212,253 +196,100 @@ class WiFIMessenger:
             s.close()
 
     def add_message(self, user, content, timestamp, is_me=False):
-        # Format: [Time] User: Content
-        # We store raw data to render dynamically based on width
-        self.messages.append({
-            "time": timestamp,
-            "user": user,
-            "content": content,
-            "is_me": is_me
-        })
-        # Keep only last 100 messages to save memory
-        if len(self.messages) > 100:
-            self.messages.pop(0)
+        self.messages.append({"time": timestamp, "user": user, "content": content, "is_me": is_me})
+        if len(self.messages) > 100: self.messages.pop(0)
 
     def add_system(self, text):
-        self.messages.append({
-            "time": datetime.now().strftime("%H:%M"),
-            "user": "SYSTEM",
-            "content": text,
-            "is_me": False,
-            "is_system": True
-        })
-        if len(self.messages) > 100:
-            self.messages.pop(0)
+        self.messages.append({"time": datetime.now().strftime("%H:%M"), "content": text, "is_system": True})
+        if len(self.messages) > 100: self.messages.pop(0)
 
     def draw_ui(self, input_buffer=""):
         if not self.running: return
-        
-        # Get terminal size
         try:
             cols, rows = os.get_terminal_size()
         except:
-            cols, rows = 100, 30
+            cols, rows = 80, 24
             
-        self.width = cols
-        mid_width = int(cols * 0.90) # 90% width
-        start_pad = int((cols - mid_width) / 2)
+        sys.stdout.write("\033[H\033[J" + Colors.HIDE_CURSOR)
+        mid_w = int(cols * 0.95)
+        pad = " " * int((cols - mid_w) / 2)
         
-        # Clear Screen (Optimized)
-        sys.stdout.write("\033[H\033[J")
-        sys.stdout.write(Colors.HIDE_CURSOR)
-        
-        padding = " " * start_pad
-        
-        # --- HEADER ---
-        sys.stdout.write(f"{Colors.BG_HEADER}{Colors.TEXT_HEADER}{Colors.BOLD}")
-        sys.stdout.write(" " * cols + "\n")
-        
-        # Draw Logo centered
-        logo_lines = LOGO.split('\n')
-        for line in logo_lines[:5]: # Top part of logo
-            centered = line.center(cols)
-            sys.stdout.write(f"{padding}{centered}\n")
-            
-        sys.stdout.write(f"{padding}{'─' * mid_width}\n")
-        sys.stdout.write(f"{padding} Mode: {Colors.BOLD}{self.mode.upper()}{Colors.RESET}{Colors.BG_HEADER}{Colors.TEXT_HEADER}  |  User: {Colors.BOLD}{self.username}{Colors.RESET}{Colors.BG_HEADER}\n")
-        sys.stdout.write(" " * cols + "\n")
-        sys.stdout.write(f"{Colors.RESET}")
+        # Header
+        sys.stdout.write(f"{Colors.BG_HEADER}{Colors.TEXT_HEADER}{' ' * cols}\n")
+        for line in LOGO.split('\n'):
+            if line.strip(): sys.stdout.write(f"{pad}{line.center(mid_w)}\n")
+        sys.stdout.write(f"{pad}{'─' * mid_w}\n")
+        sys.stdout.write(f"{pad} Mode: {self.mode.upper()} | User: {self.username}\n")
+        sys.stdout.write(f"{' ' * cols}{Colors.RESET}\n")
 
-        # --- CHAT AREA ---
-        # Calculate available lines for chat
-        header_lines = 10
-        footer_lines = 4
-        chat_height = rows - header_lines - footer_lines
-        
-        sys.stdout.write(f"{Colors.BG_CHAT}")
-        
-        # Render messages from bottom up
-        visible_msgs = self.messages[-chat_height:]
-        
-        for msg in visible_msgs:
+        # Chat
+        chat_h = rows - 12
+        visible = self.messages[-chat_h:]
+        sys.stdout.write(Colors.BG_CHAT)
+        for msg in visible:
             if msg.get("is_system"):
-                # System message centered
-                sys_text = f"✦ {msg['content']} ✦"
-                centered_sys = sys_text.center(mid_width)
-                sys.stdout.write(f"{Colors.TEXT_SYSTEM}{Colors.DIM}{padding}{centered_sys}{Colors.RESET}{Colors.BG_CHAT}\n")
+                sys.stdout.write(f"{Colors.TEXT_SYSTEM}{pad}{msg['content'].center(mid_w)}{Colors.RESET}{Colors.BG_CHAT}\n")
             else:
-                # Chat bubble
-                prefix = "✓" if msg['is_me'] else "💬"
-                color_bg = Colors.BG_MY_MSG if msg['is_me'] else Colors.BG_OTHER_MSG
-                color_name = Colors.TEXT_MY_NAME if msg['is_me'] else Colors.TEXT_OTHER_NAME
-                
-                # Wrap content
-                max_content_width = mid_width - 15 # Reserve space for name/time
-                words = msg['content'].split()
-                lines = []
-                current_line = ""
-                for word in words:
-                    if len(current_line) + len(word) + 1 < max_content_width:
-                        current_line += (" " if current_line else "") + word
-                    else:
-                        lines.append(current_line)
-                        current_line = word
-                if current_line:
-                    lines.append(current_line)
-                
-                # Draw first line with header
-                header_part = f"[{msg['time']}] {color_name}{msg['user']}{Colors.RESET}: "
-                first_line_content = lines[0] if lines else ""
-                
-                # Construct full line
-                if msg['is_me']:
-                    # Right align logic is tricky with wrapping, so we left align but style differently
-                    full_line = f"{prefix} {header_part}{first_line_content}"
-                    # Pad right to fill bubble visually if needed, or just let it flow
-                    sys.stdout.write(f"{color_bg}{padding}{full_line.ljust(mid_width)}{Colors.RESET}\n")
-                else:
-                    full_line = f"{prefix} {header_part}{first_line_content}"
-                    sys.stdout.write(f"{color_bg}{padding}{full_line.ljust(mid_width)}{Colors.RESET}\n")
-                
-                # Draw wrapped lines
-                for line in lines[1:]:
-                    indent = " " * 15
-                    sys.stdout.write(f"{color_bg}{padding}{indent}{line.ljust(max_content_width)}{Colors.RESET}\n")
+                c_name = Colors.TEXT_MY_NAME if msg['is_me'] else Colors.TEXT_OTHER_NAME
+                sys.stdout.write(f"{pad}[{msg['time']}] {c_name}{msg['user']}{Colors.RESET}{Colors.BG_CHAT}: {msg['content']}\n")
+        
+        # Fill empty space
+        for _ in range(chat_h - len(visible)): sys.stdout.write("\n")
 
-        sys.stdout.write(f"{Colors.RESET}")
-
-        # --- FOOTER / INPUT ---
+        # Footer
         sys.stdout.write(f"{Colors.BG_INPUT}{' ' * cols}\n")
-        
-        prompt = f"📝 {self.username} > "
-        display_input = input_buffer
-        
-        # Truncate input if too long
-        max_input_len = mid_width - len(prompt) - 2
-        if len(display_input) > max_input_len:
-            display_input = "..." + display_input[-max_input_len+3:]
-            
-        sys.stdout.write(f"{Colors.BG_INPUT}{Colors.TEXT_HEADER}{padding}{prompt}{display_input}{Colors.RESET}\n")
-        
-        # Peer Count
-        active_peers = sum(1 for t in self.peers.values() if time.time() - t < PEER_TIMEOUT)
-        status_text = f"📶 Online: {active_peers} devices"
-        sys.stdout.write(f"{Colors.BG_INPUT}{Colors.DIM}{padding}{status_text.rjust(mid_width)}{Colors.RESET}\n")
-        sys.stdout.write(f"{Colors.BG_INPUT}{' ' * cols}\n")
-        
+        sys.stdout.write(f"{pad}📝 {self.username} > {input_buffer}\n")
+        active = sum(1 for t in self.peers.values() if time.time() - t < PEER_TIMEOUT)
+        sys.stdout.write(f"{Colors.DIM}{pad}{('📶 Online: ' + str(active)).rjust(mid_w)}{Colors.RESET}\n")
         sys.stdout.flush()
 
     def input_loop(self):
         buffer = ""
-        last_draw = 0
-        
-        # Announce join
-        time.sleep(0.5)
         self.send_message("join", "")
         
-        # Start periodic pings and cleanup
-        def peer_manager():
+        def pinger():
             while self.running:
-                now = time.time()
-                # Remove old peers
-                dead_peers = [ip for ip, t in self.peers.items() if now - t > PEER_TIMEOUT]
-                for ip in dead_peers:
-                    del self.peers[ip]
-                
-                # Send ping
                 self.send_message("ping", "")
                 time.sleep(5)
-        
-        threading.Thread(target=peer_manager, daemon=True).start()
+        threading.Thread(target=pinger, daemon=True).start()
 
         while self.running:
-            try:
-                key = self.get_key()
-                
-                if key == '\r' or key == '\n': # Enter
-                    if buffer.strip():
-                        self.send_message("msg", buffer)
-                        # Add my own message locally immediately
-                        self.add_message(self.username, buffer, datetime.now().strftime("%H:%M"), is_me=True)
-                        buffer = ""
-                    self.draw_ui(buffer)
-                    
-                elif key == '\x08' or key == '\x7f': # Backspace
-                    if buffer:
-                        buffer = buffer[:-1]
-                    self.draw_ui(buffer)
-                    
-                elif key == '\x03': # Ctrl+C
-                    raise KeyboardInterrupt
-                    
-                elif len(key) == 1 and key.isprintable():
-                    buffer += key
-                    self.draw_ui(buffer)
-                    
-                # Auto redraw periodically to update peer count/timestamps if idle
-                if time.time() - last_draw > 2:
-                    self.draw_ui(buffer)
-                    last_draw = time.time()
-                    
-            except Exception as e:
+            self.draw_ui(buffer)
+            key = self.get_key()
+            if key in ('\r', '\n'):
+                if buffer.strip():
+                    self.send_message("msg", buffer)
+                    self.add_message(self.username, buffer, datetime.now().strftime("%H:%M"), True)
+                    buffer = ""
+            elif key in ('\x08', '\x7f'):
+                buffer = buffer[:-1]
+            elif key == '\x03':
                 break
-
-        # Cleanup
-        self.send_message("leave", "")
-        sys.stdout.write(Colors.SHOW_CURSOR + Colors.RESET)
-        print(f"\n{Colors.TEXT_SYSTEM}Goodbye! Thanks for using Wi-Fi Walkie-Talkie.{Colors.RESET}\n")
+            elif len(key) == 1 and key.isprintable():
+                buffer += key
 
     def run(self):
-        # Clear screen initially
         os.system('cls' if os.name == 'nt' else 'clear')
+        print(Colors.BOLD + LOGO + Colors.RESET)
         
-        print(f"{Colors.TEXT_HEADER}{Colors.BOLD}")
-        print(LOGO)
-        print(f"{Colors.RESET}")
-        
-        # Get Username
         while not self.username:
-            u = input(f"{Colors.TEXT_CYAN}Enter your nickname: {Colors.RESET}").strip()
-            if u: self.username = u
+            self.username = input(f"{Colors.TEXT_CYAN}Nickname: {Colors.RESET}").strip()
             
-        # Get Mode
-        print("\nSelect Mode:")
-        print("1. 🌍 Public (Open Chat)")
-        print("2. 🔒 Secret (Encrypted)")
-        
-        choice = input(f"{Colors.TEXT_CYAN}Choice [1/2]: {Colors.RESET}").strip()
-        if choice == '2':
+        print("\n1. Public  2. Secret")
+        if input("Choice: ").strip() == '2':
             self.mode = 'secret'
-            if not CRYPTO_AVAILABLE:
-                print(f"{Colors.TEXT_ERROR}Error: Cryptography library missing. Install with 'pip install cryptography'{Colors.RESET}")
-                return
-            pwd = input(f"{Colors.TEXT_CYAN}Enter a shared secret word: {Colors.RESET}").strip()
-            if not self.setup_crypto(pwd):
-                return
-            print(f"{Colors.TEXT_GREEN}✅ Encrypted Channel Established.{Colors.RESET}")
-        else:
-            self.mode = 'public'
-            
-        time.sleep(1)
+            pwd = input("Secret word: ")
+            self.setup_crypto(pwd)
         
-        # Init Network
         self.init_socket()
-        if not self.running: return
-        
-        # Start Threads
-        recv_thread = threading.Thread(target=self.receive_loop, daemon=True)
-        recv_thread.start()
-        
-        # Start UI Loop
+        threading.Thread(target=self.receive_loop, daemon=True).start()
         try:
             self.input_loop()
         except KeyboardInterrupt:
-            self.running = False
+            pass
+        finally:
+            self.send_message("leave", "")
+            sys.stdout.write(Colors.SHOW_CURSOR + Colors.RESET)
 
 if __name__ == "__main__":
-    try:
-        app = WiFIMessenger()
-        app.run()
-    except Exception as e:
-        print(f"{Colors.TEXT_ERROR}Critical Error: {e}{Colors.RESET}")
-        sys.exit(1)
+    WiFIMessenger().run()

@@ -35,6 +35,8 @@ class Colors:
     BG_INPUT = "\033[48;5;236m"  
     BG_MY_MSG = "\033[48;5;22m"  
     BG_OTHER_MSG = "\033[48;5;24m" 
+    TEXT_CYAN = "\033[96m"   # Added this
+    TEXT_GREEN = "\033[92m"  # Added this just in case
     
     # Text
     TEXT_HEADER = "\033[97m"     

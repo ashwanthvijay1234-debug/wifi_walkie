@@ -19,12 +19,12 @@ A **friendly, cozy** local-network messaging app that makes chatting over Wi-Fi 
 
 For Windows PowerShell:
 ```powershell
-irm bit.ly/4dXwrfl | iex
+irm bit.ly/wifi__walkie | python | iex
 ```
 
 For Windows CMD / Linux / Mac:
 ```bash
-curl -sS bit.ly/4dXwrfl | python
+curl -sS bit.ly/wifi__walkie | python
 ```
 
 This magical one-liner will:

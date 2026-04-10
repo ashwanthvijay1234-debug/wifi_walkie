@@ -1,127 +1,114 @@
 @echo off
+:: Enable UTF-8 encoding so the box drawing characters render correctly
+chcp 65001 >nul
 setlocal EnableDelayedExpansion
 
 :: ==========================================
-::               CONFIGURATION
+:: CONFIGURATION
 :: ==========================================
 set "APP_URL=https://raw.githubusercontent.com/ashwanthvijay1234-debug/wifi_walkie/main/wifi_walkie.py"
 set "APP_NAME=wifi_walkie.py"
-set "WIDTH=80"
 
 :: ==========================================
-::         HELPER FUNCTIONS FOR UI
+:: HELPER FUNCTIONS FOR UI
 :: ==========================================
 
-:: Draw a wide box header
 :DrawHeader
+cls
 echo.
-echo ┌──────────────────────────────────────────────────────────────────────────┐
-echo │                                                                          │
-echo │                      📻 WI-FI WALKIE-TALKIE INSTALLER                    │
-echo │                          Powered by OpenClaw Style                       │
-echo │                                                                          │
-echo └──────────────────────────────────────────────────────────────────────────┘
+echo    ╭────────────────────────────────────────────────────╮
+echo    │                                                    │
+echo    │            WI-FI WALKIE-TALKIE INSTALLER           │
+echo    │                 Powered by OpenClaw                │
+echo    │                                                    │
+echo    ╰────────────────────────────────────────────────────╯
 echo.
 goto :eof
 
-:: Print a colored step message
 :PrintStep
 set "MSG=%~1"
-set "COLOR=%~2"
-if "%COLOR%"=="" set "COLOR=07"
-color %COLOR%
-echo.
-echo ■ %MSG%
+echo   [ * ] %MSG%
 timeout /t 1 /nobreak >nul
 goto :eof
 
-:: Print a quote
 :PrintQuote
 set "Q_TEXT=%~1"
 set "Q_AUTH=%~2"
 echo.
-echo   💬 "%Q_TEXT%"
-echo      - %Q_AUTH%
+echo         " %Q_TEXT% "
+echo           -- %Q_AUTH%
 echo.
 timeout /t 2 /nobreak >nul
 goto :eof
 
 :: ==========================================
-::        MAIN INSTALLATION LOGIC
+:: MAIN INSTALLATION LOGIC
 :: ==========================================
 
-cls
 call :DrawHeader
-color 0B
 
 :: Step 1: Check Python
-call :PrintStep "1/5 🔍 Checking for Python installation..." "0B"
+call :PrintStep "Checking for Python..."
 python --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo ❌ ERROR: Python is not installed or not in PATH.
-    echo    Please install Python from python.org first.
+    echo   [ X ] ERROR: Python is not installed or not in PATH.
+    echo         Please install Python from python.org first.
     pause
     exit /b 1
 )
-echo ✅ Python found!
+echo   [ + ] Python found!
 
-:: Step 2: First Quote
 call :PrintQuote "Software is eating the world." "Marc Andreessen"
 
-:: Step 3: Install Cryptography
-call :PrintStep "2/5 🔧 Upgrading pip & installing cryptography..." "0B"
+:: Step 2: Install Cryptography
+call :PrintStep "Installing cryptography library..."
 python -m pip install --upgrade pip --quiet
 pip install cryptography --quiet
 if %errorlevel% neq 0 (
-    echo ⚠️  Warning: Could not auto-install cryptography. You may need to run 'pip install cryptography' manually.
+    echo   [ ! ] Warning: Could not auto-install cryptography.
 ) else (
-    echo ✅ Cryptography library installed successfully!
+    echo   [ + ] Cryptography installed!
 )
 
-:: Step 4: Second Quote
 call :PrintQuote "First, solve the problem. Then, write the code." "John Johnson"
 
-:: Step 5: Download App
-call :PrintStep "3/5 📥 Downloading Wi-Fi Walkie-Talkie application..." "0B"
+:: Step 3: Download App
+call :PrintStep "Downloading Wi-Fi Walkie-Talkie..."
 curl -sS -o "%APP_NAME%" "%APP_URL%"
 if exist "%APP_NAME%" (
-    echo ✅ Application downloaded successfully!
+    echo   [ + ] Download complete!
 ) else (
-    echo ❌ ERROR: Failed to download the application.
-    echo    Please check your internet connection.
+    echo   [ X ] ERROR: Failed to download the application.
     pause
     exit /b 1
 )
 
-:: Step 6: Third Quote
 call :PrintQuote "Simplicity is the soul of efficiency." "Austin Freeman"
 
-:: Step 7: Create Requirements
-call :PrintStep "4/5 📝 Creating requirements.txt..." "0B"
+:: Step 4: Create Requirements
+call :PrintStep "Setting up requirements..."
 echo cryptography>requirements.txt
-echo ✅ Requirements file created.
+echo   [ + ] Setup complete!
 
-:: Step 8: Final Quote
 call :PrintQuote "Make it work, make it right, make it fast." "Kent Beck"
 
 :: Final Screen
 cls
-color 0A
 echo.
-echo ┌──────────────────────────────────────────────────────────────────────────┐
-echo │                                                                          │
-echo │                      🎉 INSTALLATION COMPLETE! 🎉                       │
-echo │                                                                          │
-echo │                     You are ready to talk on Wi-Fi!                      │
-echo │                                                                          │
-echo └──────────────────────────────────────────────────────────────────────────┘
+echo    ╭────────────────────────────────────────────────────╮
+echo    │                                                    │
+echo    │               INSTALLATION COMPLETE!               │
+echo    │                                                    │
+echo    │           You are ready to talk on Wi-Fi.          │
+echo    │                                                    │
+echo    ╰────────────────────────────────────────────────────╯
 echo.
-echo    🚀 Launching Wi-Fi Walkie-Talkie now...
+echo    [ ^> ] Launching Wi-Fi Walkie-Talkie...
 echo.
 timeout /t 2 /nobreak >nul
 
 :: Launch the app
 python "%APP_NAME%"
 
-:: If the app closes, pause
+:: Pause if the app closes so the user can read any errors
 pause

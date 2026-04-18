@@ -49,12 +49,16 @@ call :DrawHeader
 
 :: Step 1: Check Python
 call :PrintStep "Checking for Python..."
-python --version >nul 2>&1
+py --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo   [ X ] ERROR: Python is not installed or not in PATH.
-    echo         Please install Python from python.org first.
-    pause
-    exit /b 1
+    python --version >nul 2>&1
+    if %errorlevel% neq 0 (
+        echo   [ X ] ERROR: Python is not installed or not in PATH.
+        echo         Please install Python from python.org first.
+        echo         Make sure to check 'Add Python to PATH' during installation!
+        pause
+        exit /b 1
+    )
 )
 echo   [ + ] Python found!
 
@@ -62,7 +66,10 @@ call :PrintQuote "Software is eating the world." "Marc Andreessen"
 
 :: Step 2: Install Cryptography
 call :PrintStep "Installing cryptography library..."
-python -m pip install --upgrade pip --quiet
+py -m pip install --upgrade pip --quiet 2>nul
+if %errorlevel% neq 0 (
+    python -m pip install --upgrade pip --quiet 2>nul
+)
 pip install cryptography --quiet
 if %errorlevel% neq 0 (
     echo   [ ! ] Warning: Could not auto-install cryptography.
@@ -107,8 +114,12 @@ echo    [ ^> ] Launching Wi-Fi Walkie-Talkie...
 echo.
 timeout /t 2 /nobreak >nul
 
-:: Launch the app
-python "%APP_NAME%"
+:: Launch the app (use full path to avoid system32 issue)
+set "SCRIPT_DIR=%~dp0"
+py "%SCRIPT_DIR%%APP_NAME%" 2>nul
+if %errorlevel% neq 0 (
+    python "%SCRIPT_DIR%%APP_NAME%"
+)
 
 :: Pause if the app closes so the user can read any errors
 pause

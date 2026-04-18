@@ -48,7 +48,10 @@ function Show-Quote {
 # Step 1: Check for Python
 Write-Host "[1/5] 🔍 Checking for Python installation..." -ForegroundColor Cyan
 try {
-    $pythonVersion = python --version 2>&1
+    $pythonVersion = py --version 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        $pythonVersion = python --version 2>&1
+    }
     if ($LASTEXITCODE -eq 0) {
         Write-Host " ✅ Python found! $pythonVersion" -ForegroundColor Green
         Show-Quote
@@ -60,6 +63,7 @@ try {
     Write-Host " ❌ Python not found! Please install Python from https://python.org" -ForegroundColor Red
     Write-Host ""
     Write-Host " 💡 Tip: Make sure to check 'Add Python to PATH' during installation!" -ForegroundColor Yellow
+    Write-Host " 💡 Alternative: Use the Python Launcher (py command) if available" -ForegroundColor Yellow
     Write-Host ""
     Read-Host "Press Enter to exit"
     exit 1
@@ -68,7 +72,10 @@ try {
 # Step 2: Check for pip
 Write-Host "[2/5] 🔧 Checking for pip package manager..." -ForegroundColor Cyan
 try {
-    $pipVersion = python -m pip --version 2>&1
+    $pipVersion = py -m pip --version 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        $pipVersion = python -m pip --version 2>&1
+    }
     if ($LASTEXITCODE -eq 0) {
         Write-Host " ✅ pip is ready!" -ForegroundColor Green
     } else {
@@ -76,13 +83,19 @@ try {
     }
 } catch {
     Write-Host " ❌ pip not found! Installing ensurepip..." -ForegroundColor Yellow
-    python -m ensurepip --upgrade
+    py -m ensurepip --upgrade 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        python -m ensurepip --upgrade
+    }
 }
 Show-Quote
 
 # Step 3: Upgrade pip
 Write-Host "[3/5] 📦 Upgrading pip for best performance..." -ForegroundColor Cyan
-python -m pip install --upgrade pip --quiet 2>$null
+py -m pip install --upgrade pip --quiet 2>$null
+if ($LASTEXITCODE -ne 0) {
+    python -m pip install --upgrade pip --quiet 2>$null
+}
 if ($LASTEXITCODE -eq 0) {
     Write-Host " ✅ Pip upgraded successfully!" -ForegroundColor Green
 } else {
@@ -93,7 +106,10 @@ Show-Quote
 # Step 4: Install cryptography
 Write-Host "[4/5] 🔐 Installing encryption library (cryptography)..." -ForegroundColor Cyan
 Write-Host "    This enables secure Secret Mode conversations!" -ForegroundColor Gray
-python -m pip install cryptography --quiet
+py -m pip install cryptography --quiet 2>$null
+if ($LASTEXITCODE -ne 0) {
+    python -m pip install cryptography --quiet
+}
 if ($LASTEXITCODE -eq 0) {
     Write-Host " ✅ Cryptography library installed!" -ForegroundColor Green
 } else {
@@ -148,9 +164,14 @@ if ($runNow -eq "Y" -or $runNow -eq "y") {
     Write-Host ""
     Write-Host " 🚀 Starting Wi-Fi Walkie-Talkie..." -ForegroundColor Green
     Write-Host ""
-    python wifi_walkie.py
+    # Use full path to avoid working directory issues
+    $scriptPath = Join-Path $PSScriptRoot "wifi_walkie.py"
+    py $scriptPath 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        python $scriptPath
+    }
 } else {
     Write-Host ""
-    Write-Host " 👋 See you later! Run 'python wifi_walkie.py' anytime to start chatting!" -ForegroundColor Cyan
+    Write-Host " 👋 See you later! Run 'py wifi_walkie.py' or 'python wifi_walkie.py' anytime to start chatting!" -ForegroundColor Cyan
     Write-Host ""
 }

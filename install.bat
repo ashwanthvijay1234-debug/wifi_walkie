@@ -88,18 +88,18 @@ if "%choice%"=="" set choice=1
 cd /d "!RUN_DIR!"
 
 if "%choice%"=="1" (
-    if exist "netmsg.py" (
+    if exist "!RUN_DIR!\netmsg.py" (
         echo   [ ^> ] Launching NetMsg...
-        python netmsg.py
+        python "!RUN_DIR!\netmsg.py"
     ) else (
-        echo   [ X ] Error: netmsg.py not found in !cd!
+        echo   [ X ] Error: netmsg.py not found in !RUN_DIR!
     )
 ) else (
-    if exist "wifi_walkie.py" (
+    if exist "!RUN_DIR!\wifi_walkie.py" (
         echo   [ ^> ] Launching Wi-Fi Walkie Classic...
-        python wifi_walkie.py
+        python "!RUN_DIR!\wifi_walkie.py"
     ) else (
-        echo   [ X ] Error: wifi_walkie.py not found in !cd!
+        echo   [ X ] Error: wifi_walkie.py not found in !RUN_DIR!
     )
 )
 

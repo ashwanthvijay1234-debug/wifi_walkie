@@ -3,13 +3,9 @@
 chcp 65001 >nul
 setlocal EnableDelayedExpansion
 
-:: Set directory to where the script is running, or user home if in system32
-set "RUN_DIR=%cd%"
-echo %RUN_DIR% | findstr /i /c:"system32" >nul
-if %errorlevel% equ 0 (
-    set "RUN_DIR=%USERPROFILE%\WiFiWalkie"
-    if not exist "!RUN_DIR!" mkdir "!RUN_DIR!"
-)
+:: DEFINITIVE TARGET: Use a dedicated folder in the user's home directory
+set "RUN_DIR=%USERPROFILE%\WiFiWalkie"
+if not exist "!RUN_DIR!" mkdir "!RUN_DIR!"
 cd /d "!RUN_DIR!"
 
 set "APP_URL=https://raw.githubusercontent.com/ashwanthvijay1234-debug/wifi_walkie/main/netmsg.py"
@@ -25,7 +21,7 @@ echo    │                 Powered by OpenClaw                │
 echo    │                                                    │
 echo    ╰────────────────────────────────────────────────────╯
 echo.
-echo    Working Directory: !RUN_DIR!
+echo    Current Directory: !RUN_DIR!
 echo.
 goto :eof
 
@@ -60,10 +56,11 @@ if %errorlevel% neq 0 (
 
 :: Step 3: Download/Update Files
 call :PrintStep "Downloading latest version..."
-curl -sS -L -o "netmsg.py" "%APP_URL%"
-curl -sS -L -o "wifi_walkie.py" "%CLASSIC_URL%"
+:: Use explicit full paths for curl output to be 100% sure
+curl -sS -L -o "!RUN_DIR!\netmsg.py" "%APP_URL%"
+curl -sS -L -o "!RUN_DIR!\wifi_walkie.py" "%CLASSIC_URL%"
 
-if not exist "netmsg.py" (
+if not exist "!RUN_DIR!\netmsg.py" (
     echo   [ X ] ERROR: Failed to download netmsg.py to !RUN_DIR!
     echo         Please check your internet connection.
     pause
@@ -87,19 +84,22 @@ echo.
 set /p choice="Choice [1]: "
 if "%choice%"=="" set choice=1
 
+:: Explicitly change directory one last time before launch
+cd /d "!RUN_DIR!"
+
 if "%choice%"=="1" (
     if exist "netmsg.py" (
         echo   [ ^> ] Launching NetMsg...
         python netmsg.py
     ) else (
-        echo   [ X ] Error: netmsg.py not found in !RUN_DIR!
+        echo   [ X ] Error: netmsg.py not found in !cd!
     )
 ) else (
     if exist "wifi_walkie.py" (
         echo   [ ^> ] Launching Wi-Fi Walkie Classic...
         python wifi_walkie.py
     ) else (
-        echo   [ X ] Error: wifi_walkie.py not found in !RUN_DIR!
+        echo   [ X ] Error: wifi_walkie.py not found in !cd!
     )
 )
 
